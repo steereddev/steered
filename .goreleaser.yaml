@@ -1,0 +1,65 @@
+version: 2
+
+project_name: steered
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: steered
+    main: ./cmd/steered/
+    binary: steered
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: steered
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+  groups:
+    - title: "new features"
+      regexp: "^feat"
+      order: 0
+    - title: "bug fixes"
+      regexp: "^fix"
+      order: 1
+    - title: "other"
+      order: 999
+
+release:
+  github:
+    owner: steereddev
+    name: steered
+  name_template: "steered v{{.Version}}"
+  draft: false
+  prerelease: auto
