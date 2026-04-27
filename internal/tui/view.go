@@ -676,7 +676,7 @@ func renderResolved(m Model) string {
 }
 
 func renderTUIFooter(m Model) string {
-	left := tStyleMuted.Render("steered v1.0.0  ·  github.com/steereddev/steered  ·  ") +
+	left := tStyleMuted.Render("steered v2.0.0  ·  github.com/steereddev/steered  ·  ") +
 		tStyleBlue.Render("ctrl+c") +
 		tStyleMuted.Render(" to exit")
 

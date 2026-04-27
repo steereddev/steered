@@ -421,7 +421,7 @@ func renderFooter(b *strings.Builder, s *model.ClusterSnapshot) {
 	b.WriteString(styleDivider.Render(strings.Repeat("─", termWidth())))
 	b.WriteString("\n")
 
-	left := styleMuted.Render("steered v1.0.0  ·  github.com/steereddev/steered  ·  run ") +
+	left := styleMuted.Render("steered v2.0.0  ·  github.com/steereddev/steered  ·  run ") +
 		styleBlue.Render("steered --help") +
 		styleMuted.Render(" for options")
 	right := styleMuted.Render("collected in ") + styleOk.Render("1.2s") + styleMuted.Render("  ·  0 errors")
