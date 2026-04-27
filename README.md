@@ -1,10 +1,11 @@
-> **CLI tool · Zero config · No dependencies · No database · No cloud · If kubectl works, steered works.**
 
 https://github.com/user-attachments/assets/51420bb5-cf55-43fa-ab88-991d38388304
 
 ## what is steered?
 
 You just joined a team, landed a contract, inherited an unknown kubernetes cluster, or need to troubleshoot fast. One command. Zero setup. steered watches your cluster live, thinks like a senior Kubernetes engineer, tells you exactly what to fix, and confirms when you fixed it.
+
+> **CLI tool · Zero config · No dependencies · No database · No cloud · If kubectl works, steered works.**
 
 
 # steered
@@ -49,6 +50,17 @@ $ steered
 ```
 ---
 
+## skills
+
+steered uses community-maintained skills files to guide AI analysis.
+update anytime without reinstalling the binary.
+
+```bash
+steered --update-skills
+```
+
+contribute or explore: [steereddev/steered-skills](https://github.com/steereddev/steered-skills)
+
 ## features
 
 - live terminal UI — probes cluster every 30 seconds
@@ -83,6 +95,7 @@ steered --context staging      # target different cluster
 steered --kubeconfig ~/my.cfg  # explicit kubeconfig
 steered --setup                # configure LLM provider
 steered --clear                # clear saved config and API keys
+steered --update-skills        # latest community-maintained skills files
 ```
 
 **inside steered**
