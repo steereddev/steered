@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/c1b82599-1c3c-43fd-bfe5-bf2a736d68b1" width="120" alt="steered logo" />
+</p>
 
 https://github.com/user-attachments/assets/51420bb5-cf55-43fa-ab88-991d38388304
 
