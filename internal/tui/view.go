@@ -9,6 +9,8 @@ import (
 	"github.com/steereddev/steered/internal/model"
 )
 
+const steeredVersion = "v2.1.0"
+
 var (
 	tColorGreen  = lipgloss.Color("#3fb950")
 	tColorAmber  = lipgloss.Color("#d29922")
@@ -676,7 +678,7 @@ func renderResolved(m Model) string {
 }
 
 func renderTUIFooter(m Model) string {
-	left := tStyleMuted.Render("steered v2.0.0  ·  github.com/steereddev/steered  ·  ") +
+	left := tStyleMuted.Render("steered "+steeredVersion+"  ·  steered.dev  ·  ") +
 		tStyleBlue.Render("ctrl+c") +
 		tStyleMuted.Render(" to exit")
 
