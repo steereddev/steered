@@ -41,6 +41,12 @@ func (b *Builder) Build(ctx context.Context, snapshot *model.ClusterSnapshot, re
 	loader := llm.NewPromptLoader()
 	ic.PolicyContext = loader.LoadIssue(kind)
 
+	// always append security CVE guidance
+	cveContext := loader.LoadSecurity()
+	if cveContext != "" {
+		ic.PolicyContext += "\n\n" + cveContext
+	}
+
 	switch strings.ToLower(kind) {
 	case "deployment":
 		b.enrichDeploymentContext(ctx, ic, snapshot)
@@ -383,6 +389,21 @@ func (b *Builder) enrichNamespaceContext(ctx context.Context, ic *llm.IssueConte
 		}
 	} else {
 		ic.Events = append(ic.Events, "no resource quotas defined")
+	}
+
+	// deployments and their images — critical for CVE detection
+	deployments, err := b.client.Kubernetes.AppsV1().
+		Deployments(ic.ResourceNamespace).
+		List(ctx, metav1.ListOptions{})
+	if err == nil {
+		for _, d := range deployments.Items {
+			for _, c := range d.Spec.Template.Spec.Containers {
+				ic.Events = append(ic.Events,
+					fmt.Sprintf("deployment '%s' container '%s' image: %s",
+						d.Name, c.Name, c.Image),
+				)
+			}
+		}
 	}
 }
 

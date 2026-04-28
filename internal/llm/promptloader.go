@@ -33,6 +33,13 @@ func (p *PromptLoader) LoadIssue(resourceKind string) string {
 	return p.loadFile(filename, p.defaultIssuePrompt(resourceKind))
 }
 
+func (p *PromptLoader) LoadSecurity() string {
+	return p.loadFile(
+		filepath.Join("security", "cve.md"),
+		"",
+	)
+}
+
 // loadFile reads a prompt file or returns fallback
 func (p *PromptLoader) loadFile(name, fallback string) string {
 	path := filepath.Join(p.baseDir, name)
@@ -157,4 +164,12 @@ func UpdateSkills() error {
 	fmt.Printf("✓ %d skills updated\n", updated)
 	fmt.Println("  restart steered to apply new skills")
 	return nil
+}
+
+// SkillsExist checks if skills have been installed
+func SkillsExist() bool {
+	home, _ := os.UserHomeDir()
+	basePath := filepath.Join(home, ".steered", "skills", "base.md")
+	_, err := os.Stat(basePath)
+	return err == nil
 }

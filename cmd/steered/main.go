@@ -19,7 +19,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to init config: %v\n", err)
 		os.Exit(1)
 	}
-	llm.InstallDefaultPrompts()
+
+	// fetch skills on first install only
+	if !llm.SkillsExist() {
+		fmt.Println("first run — fetching latest skills from steereddev/steered-skills...")
+		if err := llm.UpdateSkills(); err != nil {
+			fmt.Println("could not fetch skills — run: steered --update-skills")
+			fmt.Println("continuing with minimal defaults...")
+		}
+	}
 
 	// check for --setup flag or --clear flag
 	for _, arg := range os.Args[1:] {

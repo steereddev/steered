@@ -60,6 +60,10 @@ func New(kubeconfigPath, context string) (*Client, error) {
 		return nil, fmt.Errorf("failed to build rest config: %w", err)
 	}
 
+	// increase rate limits to prevent client-side throttling
+	restConfig.QPS = 50
+	restConfig.Burst = 100
+
 	// build clientset
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
