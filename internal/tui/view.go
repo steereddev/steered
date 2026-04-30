@@ -97,7 +97,7 @@ func renderMainView(m Model) string {
 	b.WriteString("\n")
 	b.WriteString(renderHealthGrid(m))
 	b.WriteString("\n")
-	b.WriteString(tDivider())
+
 	b.WriteString("\n")
 	b.WriteString(renderIssuesSummary(m))
 	b.WriteString(tDivider())
@@ -160,10 +160,8 @@ func renderIssuesSummary(m Model) string {
 
 	// critical
 	if len(critical) > 0 {
-		mustFixTitle := tStyleErr.Render("MUST FIX") +
-			"  " + tStyleDivider.Render(strings.Repeat("─", tWidth()-30)) +
-			"  " + tStyleMuted.Render(fmt.Sprintf("%d critical", len(critical)))
-		b.WriteString(mustFixTitle + "\n\n")
+		mustFixTitle := tStyleErr.Render(fmt.Sprintf("MUST FIX (%d)", len(critical)))
+		b.WriteString(mustFixTitle + "\n")
 
 		var inner strings.Builder
 		for i, issue := range critical {
@@ -178,10 +176,8 @@ func renderIssuesSummary(m Model) string {
 
 	// warnings
 	if len(warning) > 0 {
-		goodTitle := tStyleWarn.Render("GOOD PRACTICE") +
-			"  " + tStyleDivider.Render(strings.Repeat("─", tWidth()-36)) +
-			"  " + tStyleMuted.Render(fmt.Sprintf("%d recommendations", len(warning)))
-		b.WriteString(goodTitle + "\n\n")
+		goodTitle := tStyleWarn.Render(fmt.Sprintf("GOOD PRACTICE (%d)", len(warning)))
+		b.WriteString(goodTitle + "\n")
 
 		var inner strings.Builder
 		for i, issue := range warning {
@@ -202,10 +198,8 @@ func renderIssuesSummary(m Model) string {
 			Padding(0, 1).
 			Width(tWidth() - 4)
 
-		secTitle := tStylePurple.Render("SECURITY") +
-			"  " + tStyleDivider.Render(strings.Repeat("─", tWidth()-28)) +
-			"  " + tStyleMuted.Render(fmt.Sprintf("%d findings", len(security)))
-		b.WriteString(secTitle + "\n\n")
+		secTitle := tStylePurple.Render(fmt.Sprintf("SECURITY (%d)", len(security)))
+		b.WriteString(secTitle + "\n")
 
 		var inner strings.Builder
 		for i, issue := range security {
