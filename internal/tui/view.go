@@ -9,7 +9,7 @@ import (
 	"github.com/steereddev/steered/internal/model"
 )
 
-const steeredVersion = "v2.1.0"
+const steeredVersion = "v2.1.2"
 
 var (
 	tColorGreen  = lipgloss.Color("#3fb950")
