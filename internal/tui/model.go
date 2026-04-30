@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/steereddev/steered/internal/client"
 	"github.com/steereddev/steered/internal/config"
@@ -57,6 +59,12 @@ type Model struct {
 	copyConfirm      string
 	copyConfirmIndex int
 	isFirstProbe     bool
+	termWidth        int
+	termHeight       int
+	viewport         viewport.Model
+	vpReady          bool
+	fixViewport      viewport.Model
+	fixVpReady       bool
 }
 
 // New creates a new TUI model
@@ -71,6 +79,8 @@ func New(c *client.Client, cfgManager *config.Manager) Model {
 		viewMode:         "main",
 		copyConfirmIndex: -1,
 		isFirstProbe:     true,
+		termWidth:        0,
+		termHeight:       0,
 	}
 
 	cfg, err := cfgManager.LoadConfig()
@@ -104,9 +114,86 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
+// updateViewportContent refreshes main viewport with latest issues
+func (m *Model) updateViewportContent() {
+	if m.vpReady {
+		m.viewport.SetContent(renderIssuesSummary(*m))
+	}
+}
+
+// updateFixViewportContent refreshes fix viewport with latest issues
+func (m *Model) updateFixViewportContent() {
+	if m.fixVpReady {
+		m.fixViewport.SetContent(renderFixContent(*m))
+	}
+}
+
+// recalculateViewport recalculates main viewport height
+func (m *Model) recalculateViewport() {
+	if m.termWidth == 0 || m.termHeight == 0 {
+		return
+	}
+
+	top := "\n" +
+		renderTUIHeader(*m) + "\n" +
+		renderLiveBar(*m) + "\n" +
+		renderHealthGrid(*m) + "\n\n"
+	hint := renderPressAHint(*m)
+	bottom := hint + renderTUIFooter(*m)
+
+	fixedLines := lipgloss.Height(top) + lipgloss.Height(bottom)
+	h := m.termHeight - fixedLines
+	if h < 5 {
+		h = 5
+	}
+
+	if !m.vpReady {
+		m.viewport = viewport.New(m.termWidth, h)
+		m.vpReady = true
+	} else {
+		m.viewport.Width = m.termWidth
+		m.viewport.Height = h
+	}
+}
+
+// recalculateFixViewport recalculates fix viewport height
+func (m *Model) recalculateFixViewport() {
+	if m.termWidth == 0 || m.termHeight == 0 {
+		return
+	}
+
+	top := "\n" + renderFixHeader(*m) + "\n"
+	bottom := renderFixFooter(*m)
+
+	fixedLines := lipgloss.Height(top) + lipgloss.Height(bottom)
+	h := m.termHeight - fixedLines
+	if h < 5 {
+		h = 5
+	}
+
+	if !m.fixVpReady {
+		m.fixViewport = viewport.New(m.termWidth, h)
+		m.fixVpReady = true
+	} else {
+		m.fixViewport.Width = m.termWidth
+		m.fixViewport.Height = h
+	}
+}
+
 // Update handles all messages
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var vpCmd tea.Cmd
+
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.termWidth = msg.Width
+		m.termHeight = msg.Height
+		m.recalculateViewport()
+		m.updateViewportContent()
+		m.recalculateFixViewport()
+		m.updateFixViewportContent()
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -119,14 +206,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			if m.viewMode == "main" {
 				m.viewMode = "fix"
+				m.recalculateFixViewport()
+				m.updateFixViewportContent()
+				return m, nil
+			}
+
+		case "j", "down":
+			if m.viewMode == "main" && m.vpReady {
+				m.viewport.LineDown(1)
+				return m, nil
+			}
+			if m.viewMode == "fix" && m.fixVpReady {
+				m.fixViewport.LineDown(1)
+				return m, nil
+			}
+
+		case "k", "up":
+			if m.viewMode == "main" && m.vpReady {
+				m.viewport.LineUp(1)
+				return m, nil
+			}
+			if m.viewMode == "fix" && m.fixVpReady {
+				m.fixViewport.LineUp(1)
 				return m, nil
 			}
 
 		case "r":
-			// force re-analyze all resources
 			if m.analyzer != nil && m.snapshot != nil {
 				m.analyzing = make(map[string]bool)
 				m.resourceHashes = make(map[string]string)
+				m.viewport.GotoTop()
+				m.fixViewport.GotoTop()
+				m.updateViewportContent()
+				m.updateFixViewportContent()
 				return m, m.analyzeAllResources(m.snapshot)
 			}
 
@@ -146,6 +258,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						_ = clipboard.WriteAll(issue.Command)
 						m.copyConfirm = "✓ copied to clipboard"
 						m.copyConfirmIndex = idx
+						m.updateFixViewportContent()
 					}
 				}
 			}
@@ -172,7 +285,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastProbe = time.Now()
 		m.probeTimeMs = msg.durationMs
 
-		// remove issues for resources no longer in snapshot
 		m.issues = removeStaleIssues(m.issues, msg.snapshot)
 
 		if len(m.issues) == 0 {
@@ -181,27 +293,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = statusIssues
 		}
 
-		// reset copy confirm on new probe
 		m.copyConfirm = ""
 		m.copyConfirmIndex = -1
+		m.recalculateViewport()
+		m.updateViewportContent()
+		m.recalculateFixViewport()
+		m.updateFixViewportContent()
 
-		// analyze resources
 		if m.analyzer != nil {
 			if m.isFirstProbe {
-				// first probe → analyze everything
 				m.isFirstProbe = false
 				return m, m.analyzeAllResources(msg.snapshot)
 			} else {
-				// subsequent probes → only analyze changed resources
 				return m, m.analyzeChangedResources(msg.snapshot)
 			}
 		}
+
 	case resourceAnalysisResult:
 		delete(m.analyzing, msg.key)
 
 		if msg.err == nil {
-			// atomic replacement — remove all issues for this resource
-			// then add fresh results from LLM
 			m.issues = removeIssuesForResource(m.issues, msg.key)
 
 			for _, li := range msg.issues {
@@ -229,9 +340,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if len(m.issues) > 0 {
 			m.status = statusIssues
 		}
+
+		m.recalculateViewport()
+		m.updateViewportContent()
+		m.recalculateFixViewport()
+		m.updateFixViewportContent()
 	}
 
-	return m, nil
+	// pass remaining messages to active viewport
+	if m.vpReady && m.viewMode == "main" {
+		m.viewport, vpCmd = m.viewport.Update(msg)
+	}
+	if m.fixVpReady && m.viewMode == "fix" {
+		m.fixViewport, vpCmd = m.fixViewport.Update(msg)
+	}
+
+	return m, vpCmd
 }
 
 // analyzeAllResources analyzes all resources in snapshot
@@ -255,7 +379,6 @@ func (m *Model) analyzeAllResources(snapshot *model.ClusterSnapshot) tea.Cmd {
 			continue
 		}
 
-		// compute and store hash immediately to prevent re-analysis on next probe
 		ic, err := ctxBuilder.Build(ctx, snapshot, r.Name, r.Namespace, r.Kind)
 		if err == nil {
 			m.resourceHashes[key] = resourceHash(ic.Events)
@@ -294,7 +417,6 @@ func (m *Model) analyzeChangedResources(snapshot *model.ClusterSnapshot) tea.Cmd
 			continue
 		}
 
-		// build context to get current state hash
 		ic, err := ctxBuilder.Build(ctx, snapshot, r.Name, r.Namespace, r.Kind)
 		if err != nil {
 			continue
@@ -304,7 +426,6 @@ func (m *Model) analyzeChangedResources(snapshot *model.ClusterSnapshot) tea.Cmd
 		previousHash := m.resourceHashes[key]
 
 		if currentHash != previousHash {
-			// state changed → re-analyze
 			m.analyzing[key] = true
 			m.resourceHashes[key] = currentHash
 			cmds = append(cmds, m.analyzeResource(r.Kind, r.Name, r.Namespace, snapshot))
