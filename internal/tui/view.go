@@ -100,7 +100,6 @@ func renderMainView(m Model) string {
 	b.WriteString(tDivider())
 	b.WriteString("\n")
 	b.WriteString(renderIssuesSummary(m))
-	b.WriteString(renderResolved(m))
 	b.WriteString(tDivider())
 	b.WriteString("\n")
 	b.WriteString(renderTUIFooter(m))
@@ -652,29 +651,6 @@ func renderHealthGrid(m Model) string {
 	health.WriteString(buildRow(cells[4:]))
 
 	return tStyleBoxHealth.Render(health.String())
-}
-
-func renderResolved(m Model) string {
-	if len(m.resolved) == 0 {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString("\n")
-
-	for _, r := range m.resolved {
-		line := tStyleOk.Render("✓  "+r.Title) +
-			tStyleMuted.Render("  —  fixed "+r.ResolvedAt.Format("15:04:05"))
-		b.WriteString(lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#3fb95033")).
-			Padding(0, 1).
-			Width(tWidth() - 4).
-			Render(line))
-		b.WriteString("\n")
-	}
-
-	return b.String()
 }
 
 func renderTUIFooter(m Model) string {

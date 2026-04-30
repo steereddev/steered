@@ -43,7 +43,6 @@ type Model struct {
 	client           *client.Client
 	snapshot         *model.ClusterSnapshot
 	issues           []Issue
-	resolved         []ResolvedIssue
 	status           status
 	probeCount       int
 	lastProbe        time.Time
@@ -168,7 +167,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		prevIssues := m.issues
 		m.snapshot = msg.snapshot
 		m.probeCount++
 		m.lastProbe = time.Now()
@@ -176,12 +174,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// remove issues for resources no longer in snapshot
 		m.issues = removeStaleIssues(m.issues, msg.snapshot)
-
-		// update resolved based on previous issues
-		// issues will be updated by LLM results
-		if len(m.issues) > 0 {
-			m.resolved = detectResolved(m.issues, m.resolved, prevIssues)
-		}
 
 		if len(m.issues) == 0 {
 			m.status = statusHealthy

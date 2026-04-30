@@ -27,14 +27,6 @@ type Issue struct {
 	DetectedAt     time.Time
 }
 
-// ResolvedIssue represents a fixed issue
-type ResolvedIssue struct {
-	Title        string
-	ResourceType string
-	Resource     string
-	ResolvedAt   time.Time
-}
-
 // resourceKey generates a unique key for a resource
 func resourceKey(kind, name, namespace string) string {
 	return kind + "/" + name + "/" + namespace
@@ -47,33 +39,6 @@ func resourceHash(events []string) string {
 		h.Write([]byte(e))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
-}
-
-// detectResolved checks which previous issues no longer appear
-func detectResolved(current []Issue, previous []ResolvedIssue, prev []Issue) []ResolvedIssue {
-	resolved := previous
-
-	currentKeys := make(map[string]bool)
-	for _, c := range current {
-		currentKeys[c.ResourceType+c.Resource+c.Title] = true
-	}
-
-	for _, p := range prev {
-		if !currentKeys[p.ResourceType+p.Resource+p.Title] {
-			resolved = append(resolved, ResolvedIssue{
-				Title:        fmt.Sprintf("%s %s — %s", p.ResourceType, p.Resource, p.Title),
-				ResourceType: p.ResourceType,
-				Resource:     p.Resource,
-				ResolvedAt:   time.Now(),
-			})
-		}
-	}
-
-	if len(resolved) > 5 {
-		resolved = resolved[len(resolved)-5:]
-	}
-
-	return resolved
 }
 
 // buildResourceList returns all resources that need analysis
