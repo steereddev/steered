@@ -59,7 +59,87 @@ func render(m Model) string {
 	if m.viewMode == "fix" {
 		return renderFixView(m)
 	}
+	if m.analyzer == nil || m.llmStatus == "error" || m.llmStatus == "unconfigured" {
+		return renderLLMGateView(m)
+	}
 	return renderMainView(m)
+}
+
+func renderLLMGateView(m Model) string {
+	w := m.termWidth
+	h := m.termHeight
+
+	var title, message string
+	var borderColor string
+
+	if m.analyzer == nil {
+		borderColor = "#484f58"
+		title = tStyleWarn.Render("⚡  steered requires an LLM to analyze your cluster")
+		message = tStyleMuted.Render("no LLM configured")
+	} else {
+		borderColor = "#f8514933"
+		name := m.analyzer.Name()
+		if idx := strings.Index(name, "/"); idx != -1 {
+			name = name[idx+1:]
+		}
+		title = tStyleErr.Render("✗  LLM connection failed")
+		message = tStyleMuted.Render(name)
+	}
+
+	// blink toggle using tick
+	blink := m.nextProbe%2 == 0
+
+	var content strings.Builder
+	content.WriteString("\n")
+	content.WriteString("    " + title + "\n")
+	content.WriteString("\n")
+	if blink {
+		content.WriteString("    " + message + "\n")
+		content.WriteString("    " + tStyleMuted.Render("check your API key and model name") + "\n")
+	} else {
+		content.WriteString("\n")
+		content.WriteString("\n")
+	}
+	content.WriteString("\n")
+	if m.analyzer == nil {
+		content.WriteString("    " + tStyleMuted.Render("run  ") + tStyleBlue.Render("steered --setup") + tStyleMuted.Render("  to get started") + "\n")
+	} else {
+		content.WriteString("    " + tStyleMuted.Render("run  ") + tStyleBlue.Render("steered --setup") + tStyleMuted.Render("  to reconfigure") + "\n")
+		content.WriteString("    " + tStyleMuted.Render("run  ") + tStyleBlue.Render("steered --clear") + tStyleMuted.Render("  to reset") + "\n")
+	}
+	content.WriteString("\n")
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Padding(1, 2).
+		Width(tWidth(w) - 4).
+		Render(content.String())
+
+	// vertically center the box
+	header := renderTUIHeader(m)
+	footer := renderTUIFooter(m)
+
+	headerLines := lipgloss.Height(header)
+	footerLines := lipgloss.Height(footer)
+	boxLines := lipgloss.Height(box)
+
+	availableLines := h - headerLines - footerLines - boxLines - 2
+	topPadding := availableLines / 2
+	if topPadding < 1 {
+		topPadding = 1
+	}
+
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(header)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("\n", topPadding))
+	b.WriteString(box)
+	b.WriteString(strings.Repeat("\n", topPadding))
+	b.WriteString(footer)
+
+	return b.String()
 }
 
 // ── MAIN VIEW ────────────────────────────────────────────────────────────────
@@ -473,7 +553,26 @@ func renderLiveBar(m Model) string {
 	if !m.lastProbe.IsZero() {
 		lastProbe = tStyleMuted.Render("  ·  last probe ") + tStyleBlue.Render(m.lastProbe.Format("15:04:05"))
 	}
-	right := nextProbe + lastProbe
+
+	llmInfo := ""
+	if m.analyzer != nil {
+		name := m.analyzer.Name()
+		if idx := strings.Index(name, "/"); idx != -1 {
+			name = name[idx+1:]
+		}
+		switch m.llmStatus {
+		case "ok":
+			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleOk.Render("✓")
+		case "error":
+			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleErr.Render("✗")
+		default:
+			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleMuted.Render("…")
+		}
+	} else {
+		llmInfo = tStyleMuted.Render("  ·  no LLM configured")
+	}
+
+	right := nextProbe + lastProbe + llmInfo
 
 	rw := 45
 	lw := tWidth(w) - 8 - rw

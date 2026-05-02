@@ -70,7 +70,13 @@ func (a *AnthropicAnalyzer) Analyze(ctx context.Context, ic *IssueContext) ([]*I
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		err := fmt.Errorf("anthropic API error %d: %s", resp.StatusCode, string(respBody))
+		DebugResponse(fmt.Sprintf("ERROR: %v", err))
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("anthropic API error %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	var anthropicResp struct {

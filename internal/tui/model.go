@@ -65,6 +65,7 @@ type Model struct {
 	vpReady          bool
 	fixViewport      viewport.Model
 	fixVpReady       bool
+	llmStatus        string
 }
 
 // New creates a new TUI model
@@ -81,12 +82,14 @@ func New(c *client.Client, cfgManager *config.Manager) Model {
 		isFirstProbe:     true,
 		termWidth:        0,
 		termHeight:       0,
+		llmStatus:        "unconfigured",
 	}
 
 	cfg, err := cfgManager.LoadConfig()
 	if err == nil && cfg.LLMProvider != "" {
 		apiKey, _ := cfgManager.LoadAPIKey()
 		m.analyzer = buildAnalyzer(cfg, apiKey)
+		m.llmStatus = "unconfigured"
 	}
 
 	return m
@@ -311,6 +314,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case resourceAnalysisResult:
 		delete(m.analyzing, msg.key)
+
+		if msg.err != nil {
+			m.llmStatus = "error"
+		} else {
+			m.llmStatus = "ok"
+		}
 
 		if msg.err == nil {
 			m.issues = removeIssuesForResource(m.issues, msg.key)
