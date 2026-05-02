@@ -89,7 +89,7 @@ func New(c *client.Client, cfgManager *config.Manager) Model {
 	if err == nil && cfg.LLMProvider != "" {
 		apiKey, _ := cfgManager.LoadAPIKey()
 		m.analyzer = buildAnalyzer(cfg, apiKey)
-		m.llmStatus = "unconfigured"
+		m.llmStatus = "connecting"
 	}
 
 	return m

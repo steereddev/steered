@@ -9,7 +9,7 @@ import (
 	"github.com/steereddev/steered/internal/model"
 )
 
-const steeredVersion = "v2.1.2"
+const steeredVersion = "v2.1.4"
 
 var (
 	tColorGreen  = lipgloss.Color("#3fb950")
@@ -59,8 +59,11 @@ func render(m Model) string {
 	if m.viewMode == "fix" {
 		return renderFixView(m)
 	}
-	if m.analyzer == nil || m.llmStatus == "error" || m.llmStatus == "unconfigured" {
+	if m.analyzer == nil || m.llmStatus == "error" {
 		return renderLLMGateView(m)
+	}
+	if m.llmStatus == "connecting" {
+		return renderConnectingView(m)
 	}
 	return renderMainView(m)
 }
@@ -142,6 +145,64 @@ func renderLLMGateView(m Model) string {
 	return b.String()
 }
 
+func renderConnectingView(m Model) string {
+	w := m.termWidth
+	h := m.termHeight
+
+	name := ""
+	if m.analyzer != nil {
+		name = m.analyzer.Name()
+		if idx := strings.Index(name, "/"); idx != -1 {
+			name = name[idx+1:]
+		}
+	}
+
+	// blink toggle
+	blink := m.nextProbe%2 == 0
+
+	var content strings.Builder
+	content.WriteString("\n")
+	if blink {
+		content.WriteString("    " + tStyleWarn.Render("⟳  connecting to "+name+" ...") + "\n")
+	} else {
+		content.WriteString("\n")
+	}
+	content.WriteString("\n")
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#3fb95033")).
+		Padding(1, 2).
+		Width(tWidth(w) - 4).
+		Render(content.String())
+
+	header := renderTUIHeader(m)
+	footer := renderTUIFooter(m)
+
+	headerLines := lipgloss.Height(header)
+	footerLines := lipgloss.Height(footer)
+	boxLines := lipgloss.Height(box)
+
+	availableLines := h - headerLines - footerLines - boxLines - 2
+	topPadding := availableLines / 2
+	if topPadding < 1 {
+		topPadding = 1
+	}
+
+	var b strings.Builder
+	b.WriteString("\n")
+	b.WriteString(header)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("\n", topPadding))
+	b.WriteString(box)
+	b.WriteString(strings.Repeat("\n", topPadding))
+	b.WriteString(footer)
+
+	return b.String()
+}
+
+// ── MAIN VIEW ────────────────────────────────────────────────────────────────
+
 // ── MAIN VIEW ────────────────────────────────────────────────────────────────
 
 func renderMainView(m Model) string {
@@ -174,6 +235,17 @@ func renderPressAHint(m Model) string {
 func renderIssuesSummary(m Model) string {
 	w := m.termWidth
 	var b strings.Builder
+
+	sectionTitle := func(title string) string {
+		hint := tStyleBlue.Render("↑↓") + tStyleMuted.Render(" to scroll")
+		hintWidth := lipgloss.Width("↑↓ to scroll")
+		titleWidth := lipgloss.Width(title)
+		padLen := tWidth(w) - 4 - titleWidth - hintWidth - 3
+		if padLen < 1 {
+			padLen = 1
+		}
+		return title + strings.Repeat(" ", padLen) + hint
+	}
 
 	if m.analyzer == nil {
 		content := tStyleMuted.Render("⚡  configure LLM to enable AI analysis  ·  run ") +
@@ -209,7 +281,7 @@ func renderIssuesSummary(m Model) string {
 	issueNum := 1
 
 	if len(critical) > 0 {
-		b.WriteString(tStyleErr.Render(fmt.Sprintf("MUST FIX (%d)", len(critical))) + "\n")
+		b.WriteString(sectionTitle(tStyleErr.Render(fmt.Sprintf("MUST FIX (%d)", len(critical)))) + "\n")
 		var inner strings.Builder
 		for i, issue := range critical {
 			inner.WriteString(renderIssueSummaryRow(issue, issueNum))
@@ -221,21 +293,8 @@ func renderIssuesSummary(m Model) string {
 		b.WriteString(boxStyle("#f8514933", w).Render(inner.String()) + "\n\n")
 	}
 
-	if len(warning) > 0 {
-		b.WriteString(tStyleWarn.Render(fmt.Sprintf("GOOD PRACTICE (%d)", len(warning))) + "\n")
-		var inner strings.Builder
-		for i, issue := range warning {
-			inner.WriteString(renderIssueSummaryRow(issue, issueNum))
-			issueNum++
-			if i < len(warning)-1 {
-				inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-12)) + "\n")
-			}
-		}
-		b.WriteString(boxStyle("#d2992233", w).Render(inner.String()) + "\n\n")
-	}
-
 	if len(security) > 0 {
-		b.WriteString(tStylePurple.Render(fmt.Sprintf("SECURITY (%d)", len(security))) + "\n")
+		b.WriteString(sectionTitle(tStylePurple.Render(fmt.Sprintf("SECURITY (%d)", len(security)))) + "\n")
 		var inner strings.Builder
 		for i, issue := range security {
 			inner.WriteString(renderIssueSummaryRow(issue, issueNum))
@@ -245,6 +304,19 @@ func renderIssuesSummary(m Model) string {
 			}
 		}
 		b.WriteString(boxStyle("#bc8cff33", w).Render(inner.String()) + "\n\n")
+	}
+
+	if len(warning) > 0 {
+		b.WriteString(sectionTitle(tStyleWarn.Render(fmt.Sprintf("GOOD PRACTICE (%d)", len(warning)))) + "\n")
+		var inner strings.Builder
+		for i, issue := range warning {
+			inner.WriteString(renderIssueSummaryRow(issue, issueNum))
+			issueNum++
+			if i < len(warning)-1 {
+				inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-12)) + "\n")
+			}
+		}
+		b.WriteString(boxStyle("#d2992233", w).Render(inner.String()) + "\n\n")
 	}
 
 	return b.String()
@@ -489,8 +561,24 @@ func renderTUIHeader(m Model) string {
 	ctx := tStyleMuted.Render(m.client.Context)
 	ts := tStyleMuted.Render(time.Now().UTC().Format("2006-01-02  15:04:05 UTC"))
 
+	llmLine := ""
+	if m.analyzer != nil {
+		name := m.analyzer.Name()
+		if idx := strings.Index(name, "/"); idx != -1 {
+			name = name[idx+1:]
+		}
+		switch m.llmStatus {
+		case "ok":
+			llmLine = name + "  " + tStyleOk.Render("✓")
+		case "error":
+			llmLine = name + "  " + tStyleErr.Render("✗")
+		default:
+			llmLine = name + "  " + tStyleMuted.Render("…")
+		}
+	}
+
 	left := brand + "\n" + tagline
-	right := fmt.Sprintf("cluster: %s\ncontext: %s\n%s", clusterName, ctx, ts)
+	right := fmt.Sprintf("cluster: %s\ncontext: %s\n%s\n%s", clusterName, ctx, ts, llmLine)
 
 	rw := 50
 	lw := tWidth(w) - 8 - rw
@@ -554,25 +642,7 @@ func renderLiveBar(m Model) string {
 		lastProbe = tStyleMuted.Render("  ·  last probe ") + tStyleBlue.Render(m.lastProbe.Format("15:04:05"))
 	}
 
-	llmInfo := ""
-	if m.analyzer != nil {
-		name := m.analyzer.Name()
-		if idx := strings.Index(name, "/"); idx != -1 {
-			name = name[idx+1:]
-		}
-		switch m.llmStatus {
-		case "ok":
-			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleOk.Render("✓")
-		case "error":
-			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleErr.Render("✗")
-		default:
-			llmInfo = tStyleMuted.Render("  ·  ") + tStyleMuted.Render(name) + "  " + tStyleMuted.Render("…")
-		}
-	} else {
-		llmInfo = tStyleMuted.Render("  ·  no LLM configured")
-	}
-
-	right := nextProbe + lastProbe + llmInfo
+	right := nextProbe + lastProbe
 
 	rw := 45
 	lw := tWidth(w) - 8 - rw
