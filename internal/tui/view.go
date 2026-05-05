@@ -393,18 +393,28 @@ func renderFixHeader(m Model) string {
 
 func renderFixContent(m Model) string {
 	w := m.termWidth
-	var inner strings.Builder
+	var b strings.Builder
 
 	if len(m.issues) == 0 {
 		if len(m.analyzing) > 0 {
-			inner.WriteString(tStyleWarn.Render("⟳  analyzing cluster issues...\n"))
-		} else {
-			inner.WriteString(tStyleOk.Render("✓  cluster is healthy — no issues found\n"))
+			return boxStyle("#3fb95066", w).Render(tStyleWarn.Render("⟳  analyzing cluster issues..."))
 		}
-		return boxStyle("#3fb95066", w).Render(inner.String())
+		return boxStyle("#3fb95066", w).Render(tStyleOk.Render("✓  cluster is healthy — no issues found"))
 	}
 
-	for i, issue := range m.issues {
+	fixSectionTitle := func(title string) string {
+		hint := tStyleBlue.Render("↑↓") + tStyleMuted.Render(" to scroll")
+		hintWidth := lipgloss.Width("↑↓ to scroll")
+		titleWidth := lipgloss.Width(title)
+		padLen := tWidth(w) - 4 - titleWidth - hintWidth - 3
+		if padLen < 1 {
+			padLen = 1
+		}
+		return title + strings.Repeat(" ", padLen) + hint
+	}
+
+	renderIssueDetail := func(issue Issue, num int) string {
+		var inner strings.Builder
 		var icon string
 		var titleStyle lipgloss.Style
 
@@ -420,11 +430,11 @@ func renderFixContent(m Model) string {
 			titleStyle = tStyleWarn
 		}
 
-		num := tStyleMuted.Render(fmt.Sprintf("%d", i+1))
+		numStr := tStyleMuted.Render(fmt.Sprintf("%d", num))
 		resType := tStyleMuted.Render(issue.ResourceType + ":")
 
 		inner.WriteString(fmt.Sprintf("%s  %s  %s  %s\n",
-			icon, num, resType, titleStyle.Render(issue.Title)))
+			icon, numStr, resType, titleStyle.Render(issue.Title)))
 		inner.WriteString(fmt.Sprintf("   %s\n", resourceLocation(issue)))
 
 		if issue.RootCause != "" {
@@ -468,7 +478,7 @@ func renderFixContent(m Model) string {
 
 			copyWidth := tWidth(w) - 20
 			var copyHint string
-			if m.copyConfirmIndex == i && m.copyConfirm != "" {
+			if m.copyConfirmIndex == num-1 && m.copyConfirm != "" {
 				confirmText := "✓ copied to clipboard"
 				padding := copyWidth - len(confirmText) - 4
 				if padding < 0 {
@@ -478,7 +488,7 @@ func renderFixContent(m Model) string {
 					"   ╰─ " + confirmText + strings.Repeat("─", padding) + "╯",
 				)
 			} else {
-				hintText := fmt.Sprintf("press '%d' to copy command", i+1)
+				hintText := fmt.Sprintf("press '%d' to copy command", num)
 				padding := copyWidth - len(hintText) - 4
 				if padding < 0 {
 					padding = 0
@@ -510,12 +520,71 @@ func renderFixContent(m Model) string {
 			))
 		}
 
-		if i < len(m.issues)-1 {
-			inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-10)) + "\n")
+		return inner.String()
+	}
+
+	// group by severity
+	var critical, security, warning []Issue
+	for _, i := range m.issues {
+		switch i.Severity {
+		case "critical":
+			critical = append(critical, i)
+		case "security":
+			security = append(security, i)
+		default:
+			warning = append(warning, i)
 		}
 	}
 
-	return boxStyle("#3fb95066", w).Render(inner.String())
+	issueNum := 1
+
+	if len(critical) > 0 {
+		b.WriteString("\n")
+		b.WriteString(fixSectionTitle(tStyleErr.Render(fmt.Sprintf(" MUST FIX (%d)", len(critical)))) + "\n")
+		var inner strings.Builder
+		for i, issue := range critical {
+			inner.WriteString(renderIssueDetail(issue, issueNum))
+			issueNum++
+			if i < len(critical)-1 {
+				inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-12)) + "\n")
+			}
+		}
+		b.WriteString(boxStyle("#f8514933", w).Render(inner.String()) + "\n\n")
+	}
+
+	if len(security) > 0 {
+		if len(critical) == 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString(fixSectionTitle(tStylePurple.Render(fmt.Sprintf(" SECURITY (%d)", len(security)))) + "\n")
+		var inner strings.Builder
+		for i, issue := range security {
+			inner.WriteString(renderIssueDetail(issue, issueNum))
+			issueNum++
+			if i < len(security)-1 {
+				inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-12)) + "\n")
+			}
+		}
+		b.WriteString(boxStyle("#bc8cff33", w).Render(inner.String()) + "\n\n")
+	}
+
+	if len(warning) > 0 {
+		if len(critical) == 0 && len(security) == 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString(fixSectionTitle(tStyleWarn.Render(fmt.Sprintf(" GOOD PRACTICE (%d)", len(warning)))) + "\n")
+		var inner strings.Builder
+		for i, issue := range warning {
+			inner.WriteString(renderIssueDetail(issue, issueNum))
+			issueNum++
+			if i < len(warning)-1 {
+				inner.WriteString(tStyleDivider.Render(strings.Repeat("─", tWidth(w)-12)) + "\n")
+			}
+		}
+		b.WriteString(boxStyle("#d2992233", w).Render(inner.String()) + "\n\n")
+	}
+
+	return b.String()
 }
 
 func renderFixFooter(m Model) string {
