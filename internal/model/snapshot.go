@@ -16,6 +16,8 @@ type ClusterSnapshot struct {
 	Ingresses   []Ingress
 	PVCs        []PVC
 	DaemonSets  []DaemonSet
+	ConfigMaps  []ConfigMap
+	Secrets     []Secret
 
 	CostSignals     CostSignals
 	SecuritySignals SecuritySignals
@@ -135,6 +137,18 @@ type DaemonSet struct {
 	UpToDate  int32
 	Available int32
 	Age       string
+}
+
+// ConfigMap represents a configmap
+type ConfigMap struct {
+	Name      string
+	Namespace string
+}
+
+// Secret represents a secret
+type Secret struct {
+	Name      string
+	Namespace string
 }
 
 // CostSignals represents cost related signals

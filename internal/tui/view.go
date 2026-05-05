@@ -9,7 +9,7 @@ import (
 	"github.com/steereddev/steered/internal/model"
 )
 
-const steeredVersion = "v2.1.6"
+const steeredVersion = "v2.1.7"
 
 var (
 	tColorGreen  = lipgloss.Color("#3fb950")
@@ -661,6 +661,26 @@ func renderLiveBar(m Model) string {
 	return boxStyle("#3fb95033", w).Render(content)
 }
 
+func daemonSetsReady(s *model.ClusterSnapshot) int {
+	count := 0
+	for _, ds := range s.DaemonSets {
+		if ds.Ready == ds.Desired && ds.Desired > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+func daemonSetsDown(s *model.ClusterSnapshot) int {
+	count := 0
+	for _, ds := range s.DaemonSets {
+		if ds.Desired == 0 || ds.Ready < ds.Desired {
+			count++
+		}
+	}
+	return count
+}
+
 func renderHealthGrid(m Model) string {
 	w := m.termWidth
 	if m.snapshot == nil {
@@ -715,6 +735,10 @@ func renderHealthGrid(m Model) string {
 		{fmt.Sprintf("%d", len(s.Ingresses)), "ingresses", "all routes", tStyleBlue},
 		{fmt.Sprintf("%d", len(s.PVCs)), "pvcs", "persistent volumes", tStyleWarn},
 		{fmt.Sprintf("%d", severeIssues(m.issues)), "issues", fmt.Sprintf("%d analyzing", len(m.analyzing)), tStyleWarn},
+		{fmt.Sprintf("%d", len(s.DaemonSets)), "daemonsets", fmt.Sprintf("%d ready · %d down", daemonSetsReady(s), daemonSetsDown(s)), tStylePurple},
+		{fmt.Sprintf("%d", len(s.ConfigMaps)), "configmaps", "cluster wide", tStyleBlue},
+		{fmt.Sprintf("%d", len(s.Secrets)), "secrets", "cluster wide", tStyleMuted},
+		{"", "", "", tStyleMuted},
 	}
 
 	colW := (tWidth(w) - 8) / 4
@@ -748,7 +772,9 @@ func renderHealthGrid(m Model) string {
 	var health strings.Builder
 	health.WriteString(buildRow(cells[:4]) + "\n")
 	health.WriteString(divider + "\n")
-	health.WriteString(buildRow(cells[4:]))
+	health.WriteString(buildRow(cells[4:8]) + "\n")
+	health.WriteString(divider + "\n")
+	health.WriteString(buildRow(cells[8:]))
 
 	return boxStyle("#3fb95033", w).Render(health.String())
 }
