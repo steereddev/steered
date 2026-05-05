@@ -290,11 +290,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.issues = removeStaleIssues(m.issues, msg.snapshot)
 
-		if len(m.issues) == 0 {
+		if severeIssues(m.issues) == 0 {
 			m.status = statusHealthy
 		} else {
 			m.status = statusIssues
 		}
+
+		m.copyConfirm = ""
 
 		m.copyConfirm = ""
 		m.copyConfirmIndex = -1
@@ -344,11 +346,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if len(m.issues) == 0 && len(m.analyzing) == 0 {
+		if severeIssues(m.issues) == 0 && len(m.analyzing) == 0 {
 			m.status = statusHealthy
-		} else if len(m.issues) > 0 {
+		} else if severeIssues(m.issues) > 0 {
 			m.status = statusIssues
 		}
+
+		m.recalculateViewport()
 
 		m.recalculateViewport()
 		m.updateViewportContent()

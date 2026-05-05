@@ -603,10 +603,16 @@ func renderLiveBar(m Model) string {
 	interval := tStyleMuted.Render("probing every ") + tStyleBlue.Render("30s")
 
 	healthPct := 100
-	if len(m.issues) > 0 && m.snapshot != nil {
+	if m.snapshot != nil {
 		total := len(m.snapshot.Nodes) + len(m.snapshot.Deployments) + len(m.snapshot.Pods)
 		if total > 0 {
-			healthPct = 100 - (len(m.issues) * 100 / total)
+			severeCount := 0
+			for _, i := range m.issues {
+				if i.Severity == "critical" || i.Severity == "security" {
+					severeCount++
+				}
+			}
+			healthPct = 100 - (severeCount * 100 / total)
 			if healthPct < 0 {
 				healthPct = 0
 			}
@@ -628,7 +634,8 @@ func renderLiveBar(m Model) string {
 		if healthPct < 50 {
 			pctStyle = tStyleErr
 		}
-		healthState = tStyleErr.Render(fmt.Sprintf("  ·  %d issues found  ", len(m.issues))) +
+		severe := severeIssues(m.issues)
+		healthState = tStyleErr.Render(fmt.Sprintf("  ·  %d issues found  ", severe)) +
 			pctStyle.Render(fmt.Sprintf("%d%% healthy", healthPct))
 	case statusError:
 		healthState = tStyleErr.Render("  ·  connection error")
@@ -707,7 +714,7 @@ func renderHealthGrid(m Model) string {
 		{fmt.Sprintf("%d", len(s.Services)), "services", fmt.Sprintf("%d external", externalSvcs(s)), tStyleBlue},
 		{fmt.Sprintf("%d", len(s.Ingresses)), "ingresses", "all routes", tStyleBlue},
 		{fmt.Sprintf("%d", len(s.PVCs)), "pvcs", "persistent volumes", tStyleWarn},
-		{fmt.Sprintf("%d", len(m.issues)), "issues", fmt.Sprintf("%d analyzing", len(m.analyzing)), tStyleWarn},
+		{fmt.Sprintf("%d", severeIssues(m.issues)), "issues", fmt.Sprintf("%d analyzing", len(m.analyzing)), tStyleWarn},
 	}
 
 	colW := (tWidth(w) - 8) / 4

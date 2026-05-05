@@ -221,3 +221,13 @@ func removeStaleIssues(issues []Issue, snapshot *model.ClusterSnapshot) []Issue 
 	}
 	return filtered
 }
+
+func severeIssues(issues []Issue) int {
+	count := 0
+	for _, i := range issues {
+		if i.Severity == "critical" || i.Severity == "security" {
+			count++
+		}
+	}
+	return count
+}
