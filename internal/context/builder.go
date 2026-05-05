@@ -60,6 +60,8 @@ func (b *Builder) Build(ctx context.Context, snapshot *model.ClusterSnapshot, re
 		b.enrichIngressContext(ctx, ic)
 	case "pvc":
 		b.enrichPVCContext(ctx, ic)
+	case "service":
+		b.enrichServiceContext(ctx, ic)
 	default:
 		b.enrichGenericContext(ctx, ic)
 	}
@@ -523,6 +525,87 @@ func (b *Builder) enrichNodeContext(ctx context.Context, ic *llm.IssueContext) {
 
 	// warning events max 10
 	events, err := b.client.Kubernetes.CoreV1().Events("").List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.name=%s", ic.ResourceName),
+	})
+	if err == nil {
+		count := 0
+		for _, e := range events.Items {
+			if e.Type == "Warning" && count < 10 {
+				ic.Events = append(ic.Events,
+					fmt.Sprintf("[Warning] %s: %s", e.Reason, e.Message),
+				)
+				count++
+			}
+		}
+	}
+}
+
+// enrichServiceContext fetches context for a service
+func (b *Builder) enrichServiceContext(ctx context.Context, ic *llm.IssueContext) {
+	svc, err := b.client.Kubernetes.CoreV1().
+		Services(ic.ResourceNamespace).
+		Get(ctx, ic.ResourceName, metav1.GetOptions{})
+	if err != nil {
+		return
+	}
+
+	ic.Identifiers["SERVICE_TYPE"] = string(svc.Spec.Type)
+	ic.Events = append(ic.Events,
+		fmt.Sprintf("service type: %s", svc.Spec.Type),
+	)
+
+	// selector
+	if len(svc.Spec.Selector) == 0 {
+		ic.Events = append(ic.Events, "service has no selector — headless or external")
+	} else {
+		var selectors []string
+		for k, v := range svc.Spec.Selector {
+			selectors = append(selectors, fmt.Sprintf("%s=%s", k, v))
+		}
+		ic.Events = append(ic.Events,
+			fmt.Sprintf("selector: %s", strings.Join(selectors, ", ")),
+		)
+	}
+
+	// ports
+	for _, p := range svc.Spec.Ports {
+		ic.Events = append(ic.Events,
+			fmt.Sprintf("port: %d → targetPort: %s protocol: %s",
+				p.Port, p.TargetPort.String(), p.Protocol),
+		)
+	}
+
+	// external IP for LoadBalancer
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		if len(svc.Status.LoadBalancer.Ingress) == 0 {
+			ic.Events = append(ic.Events, "loadbalancer has no external IP assigned")
+		} else {
+			ic.Events = append(ic.Events,
+				fmt.Sprintf("external IP: %s", svc.Status.LoadBalancer.Ingress[0].IP),
+			)
+		}
+	}
+
+	// endpoints — most critical for detecting broken selectors
+	endpoints, err := b.client.Kubernetes.CoreV1().
+		Endpoints(ic.ResourceNamespace).
+		Get(ctx, ic.ResourceName, metav1.GetOptions{})
+	if err == nil {
+		totalAddresses := 0
+		for _, subset := range endpoints.Subsets {
+			totalAddresses += len(subset.Addresses)
+		}
+		if totalAddresses == 0 {
+			ic.Events = append(ic.Events, "endpoints: none — selector matches no pods")
+		} else {
+			ic.Events = append(ic.Events,
+				fmt.Sprintf("endpoints: %d addresses ready", totalAddresses),
+			)
+		}
+	}
+
+	// warning events
+	events, err := b.client.Kubernetes.CoreV1().Events(ic.ResourceNamespace).List(ctx, metav1.ListOptions{
 		FieldSelector: fmt.Sprintf("involvedObject.name=%s", ic.ResourceName),
 	})
 	if err == nil {

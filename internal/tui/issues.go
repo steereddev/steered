@@ -101,6 +101,15 @@ func buildResourceList(snapshot *model.ClusterSnapshot) []resourceToAnalyze {
 		})
 	}
 
+	// services
+	for _, svc := range snapshot.Services {
+		resources = append(resources, resourceToAnalyze{
+			Kind:      "service",
+			Name:      svc.Name,
+			Namespace: svc.Namespace,
+		})
+	}
+
 	return resources
 }
 
@@ -210,6 +219,9 @@ func removeStaleIssues(issues []Issue, snapshot *model.ClusterSnapshot) []Issue 
 	}
 	for _, ing := range snapshot.Ingresses {
 		existing[resourceKey("ingress", ing.Name, ing.Namespace)] = true
+	}
+	for _, svc := range snapshot.Services {
+		existing[resourceKey("service", svc.Name, svc.Namespace)] = true
 	}
 
 	var filtered []Issue
