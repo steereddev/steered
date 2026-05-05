@@ -162,6 +162,24 @@ steered talks directly to the Kubernetes API server using client-go — the same
 
 ---
 
+
+## Model Comparison
+
+steered works best with larger models that can follow structured instructions reliably.
+
+| Model | Detects | Confidence |
+|---|---|---|
+| tinyllama | ❌ | — |
+| phi3:mini | ❌ | — |
+| llama3.2 | ✅ | medium |
+| ministral-3:8b | ✅ | medium |
+| minimax:cloud | ✅ | high |
+| Claude Sonnet | ✅ | high |
+
+To switch model: `steered --setup`
+To reset configuration: `steered --clear`
+
+
 ## author
 
 built by [Awet Tsegazeab](https://github.com/steereddev) — Senior Golang Engineer, Linux & CKA Certified
