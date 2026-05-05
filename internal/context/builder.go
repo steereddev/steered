@@ -62,11 +62,82 @@ func (b *Builder) Build(ctx context.Context, snapshot *model.ClusterSnapshot, re
 		b.enrichPVCContext(ctx, ic)
 	case "service":
 		b.enrichServiceContext(ctx, ic)
+	case "daemonset":
+		b.enrichDaemonSetContext(ctx, ic)
 	default:
 		b.enrichGenericContext(ctx, ic)
 	}
 
 	return ic, nil
+}
+
+// enrichDaemonSetContext fetches context for a daemonset
+func (b *Builder) enrichDaemonSetContext(ctx context.Context, ic *llm.IssueContext) {
+	ds, err := b.client.Kubernetes.AppsV1().
+		DaemonSets(ic.ResourceNamespace).
+		Get(ctx, ic.ResourceName, metav1.GetOptions{})
+	if err != nil {
+		return
+	}
+
+	ic.Events = append(ic.Events,
+		fmt.Sprintf("desired: %d  current: %d  ready: %d  available: %d",
+			ds.Status.DesiredNumberScheduled,
+			ds.Status.CurrentNumberScheduled,
+			ds.Status.NumberReady,
+			ds.Status.NumberAvailable,
+		),
+	)
+
+	if ds.Status.DesiredNumberScheduled == 0 {
+		ic.Events = append(ic.Events, "desired pods is 0 — nodeSelector or tolerations match no nodes")
+	}
+
+	// node selector
+	if len(ds.Spec.Template.Spec.NodeSelector) > 0 {
+		var selectors []string
+		for k, v := range ds.Spec.Template.Spec.NodeSelector {
+			selectors = append(selectors, fmt.Sprintf("%s=%s", k, v))
+		}
+		ic.Events = append(ic.Events,
+			fmt.Sprintf("nodeSelector: %s", strings.Join(selectors, ", ")),
+		)
+	}
+
+	// tolerations
+	if len(ds.Spec.Template.Spec.Tolerations) > 0 {
+		ic.Events = append(ic.Events,
+			fmt.Sprintf("tolerations: %d defined", len(ds.Spec.Template.Spec.Tolerations)),
+		)
+	}
+
+	// container info
+	for _, c := range ds.Spec.Template.Spec.Containers {
+		ic.Events = append(ic.Events,
+			fmt.Sprintf("container '%s' image: %s", c.Name, c.Image),
+		)
+		if c.Resources.Limits == nil {
+			ic.Events = append(ic.Events,
+				fmt.Sprintf("container '%s' limits: none", c.Name),
+			)
+		}
+	}
+
+	// warning events
+	events, err := b.client.Kubernetes.CoreV1().Events(ic.ResourceNamespace).List(ctx, metav1.ListOptions{
+		FieldSelector: fmt.Sprintf("involvedObject.name=%s", ic.ResourceName),
+	})
+	if err == nil {
+		count := 0
+		for _, e := range events.Items {
+			if e.Type == "Warning" && count < 10 {
+				ic.Events = append(ic.Events,
+					fmt.Sprintf("[Warning] %s: %s", e.Reason, e.Message),
+				)
+				count++
+			}
+		}
+	}
 }
 
 // enrichDeploymentContext fetches full context for a deployment

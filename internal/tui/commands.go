@@ -41,6 +41,7 @@ func probe(c *client.Client) tea.Cmd {
 			collector.NewNamespaceCollector(c),
 			collector.NewPodCollector(c),
 			collector.NewDeploymentCollector(c),
+			collector.NewDaemonSetCollector(c),
 			collector.NewServiceCollector(c),
 			collector.NewIngressCollector(c),
 			collector.NewPVCCollector(c),

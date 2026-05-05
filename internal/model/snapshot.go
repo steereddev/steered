@@ -15,6 +15,7 @@ type ClusterSnapshot struct {
 	Services    []Service
 	Ingresses   []Ingress
 	PVCs        []PVC
+	DaemonSets  []DaemonSet
 
 	CostSignals     CostSignals
 	SecuritySignals SecuritySignals
@@ -122,6 +123,18 @@ type PVC struct {
 	AccessModes  string
 	StorageClass string
 	Age          string
+}
+
+// DaemonSet represents a daemonset and its scheduling status
+type DaemonSet struct {
+	Name      string
+	Namespace string
+	Desired   int32
+	Current   int32
+	Ready     int32
+	UpToDate  int32
+	Available int32
+	Age       string
 }
 
 // CostSignals represents cost related signals

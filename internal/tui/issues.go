@@ -101,12 +101,24 @@ func buildResourceList(snapshot *model.ClusterSnapshot) []resourceToAnalyze {
 		})
 	}
 
-	// services
+	// services — skip kubernetes internal service
 	for _, svc := range snapshot.Services {
+		if svc.Name == "kubernetes" && svc.Namespace == "default" {
+			continue
+		}
 		resources = append(resources, resourceToAnalyze{
 			Kind:      "service",
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
+		})
+	}
+
+	// daemonsets
+	for _, ds := range snapshot.DaemonSets {
+		resources = append(resources, resourceToAnalyze{
+			Kind:      "daemonset",
+			Name:      ds.Name,
+			Namespace: ds.Namespace,
 		})
 	}
 
@@ -222,6 +234,9 @@ func removeStaleIssues(issues []Issue, snapshot *model.ClusterSnapshot) []Issue 
 	}
 	for _, svc := range snapshot.Services {
 		existing[resourceKey("service", svc.Name, svc.Namespace)] = true
+	}
+	for _, ds := range snapshot.DaemonSets {
+		existing[resourceKey("daemonset", ds.Name, ds.Namespace)] = true
 	}
 
 	var filtered []Issue
